@@ -95,8 +95,12 @@ offClean %>% group_by(Name, stat) %>% summarise(sum = sum(values))
 ```
 3. Show the distributions of the player-level offensive statistics. The distribution of each offensive statistic should be shown in a separate facet. Explain the patterns you see.
 ```{r}
-
+temp = offClean %>% group_by(Name, stat) %>% summarise(sum = sum(values))
+ggplot(temp, aes(x = Name, y = sum, fill = Name)) + geom_bar(stat = 'identity')
 ```
+### It really interesting to see that Purdy, Brock the quarterback of the offensive team have the highest stats compare to the rest of the teammates. The second highest stats is from Hall, Breece who looks like the receiver. 
+### At the end of the day, players who play an active position that are main to score points have the highest stats. 
+
 4. Did ISU have better offense against Oregon or Oklahoma? Answer this question by creating a scatterplot with the x- and y-axes being the receiving yards of the ISU players against each of these two opponents. A large number of receiving yards indicates good offense.
 
 ```{r}

@@ -1,0 +1,146 @@
+---
+title: "lab4"
+author: "Keven Lin"
+date: 10/19/2021
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+defense <- read_excel('cyclonesFootball2020.xlsx', sheet='Defensive')
+offensive <- read_excel('cyclonesFootball2020.xlsx', sheet='Offensive')
+biography <- read_excel('cyclonesFootball2020.xlsx', sheet='Biography')
+```
+
+# Part one: Cleaning data
+
+
+Although the three Excel sheets are loaded into R, they are not useful before some cleaning. Manipulate the three imported data frames:
+
+1. The player names and opponent names should be factors.
+```{r}
+defense$Name = factor(defense$Name)
+offensive$Name = factor(offensive$Name)
+biography$Name = factor(biography$Name)
+
+defense$Opponent_Opponent = factor(defense$Opponent_Opponent)
+offensive$Opponent_Opponent = factor(offensive$Opponent_Opponent)
+```
+2. All offensive and defensive statistics should be numerical. The Weight column in biogrpahy should also be numeric. (Optional: Read ?across and learn to mutate multiple columns simultaneously using the across function in dplyr)
+```{r}
+defense = defense %>% mutate(across(Tackles_Solo:Pass_PB, ~as.numeric(.)))
+
+offensive = offensive %>% mutate(across(c(Receiving_REC, Receiving_YDS, Receiving_TD, Rushing_ATT, Rushing_YDS, Rushing_TD, Passing_YDS, Passing_TD, Passing_INT), ~as.numeric(.)))
+
+offensive$`Passing_CMP-ATT` = gsub("\r?\n|\r", " ", offensive$`Passing_CMP-ATT`)
+offensive$`Passing_CMP-ATT` = gsub("\\s", "", offensive$`Passing_CMP-ATT`) 
+
+offensive = offensive %>% mutate(Passing_CMP = as.numeric(substr(`Passing_CMP-ATT`, 1, 2)))
+offensive = offensive %>% mutate(Passing_ATT = as.numeric(substr(`Passing_CMP-ATT`, 4, 5)))
+offensive = within(offensive, rm(`Passing_CMP-ATT`))
+
+biography$Weight = as.numeric(biography$Weight)
+```
+
+3. The Height column in biography should be numeric. (Hint: Use a unit that works well)
+```{r}
+biography = biography %>% mutate(Height_Feet = as.numeric(substr(Height, 1, 1)))
+biography = biography %>% mutate(Height_Inch = as.numeric(substr(Height, 3, 4)))
+biography = biography %>% mutate(Height = Height_Feet + (Height_Inch / 12))
+biography = within(biography, rm(Height_Feet, Height_Inch))
+# biography$Height
+```
+
+4. Add a column to both defense and offense indicating whether it is the first or the second game versus an opponent. We had a single game versus each opponent except for Oklahoma, which we played against twice. (Hint: You can use group_by(), mutate(), and row_number())
+
+```{R}
+offensive = offensive %>% group_by(Name) %>% mutate(GameNumber = ifelse( duplicated(Opponent_Opponent), 2, 1))
+defense = defense %>% group_by(Name) %>% mutate(GameNumber = ifelse( duplicated(Opponent_Opponent), 2, 1))
+
+str(offensive)
+
+
+```
+By cleaning the three data frames in R, at the end of this step you should have the following three clean data frames: defClean, offClean, and bioClean. Print the structures of these data frames using str().
+
+```{R}
+defClean = defense
+offClean = offensive
+bioClean = biography
+str(defClean)
+str(offClean)
+str(bioClean)
+```
+
+# Part two: Tidying and exploring
+
+For the following questions, work on the cleaned data frames defClean, offClean, and bioClean.
+
+1. Reformat the offClean data frame into a tidy format using pivot_longer. The type of statistic (Receiving_REC for the number of receivings, Receiving_YDS for receiving yards, etc) is added as a new key column named stat.
+```{r}
+offClean = offClean %>%
+  pivot_longer(!Name & !Opponent_Opponent, names_to = "stat", values_to = "values")
+offClean
+```
+2. Obtain the player-level offensive statistics. Namely, for each player and each type of statistics, obtain the sum of the statistics in all games.
+```{r}
+offClean %>% group_by(Name, stat) %>% summarise(sum = sum(values))
+```
+3. Show the distributions of the player-level offensive statistics. The distribution of each offensive statistic should be shown in a separate facet. Explain the patterns you see.
+```{r}
+
+```
+4. Did ISU have better offense against Oregon or Oklahoma? Answer this question by creating a scatterplot with the x- and y-axes being the receiving yards of the ISU players against each of these two opponents. A large number of receiving yards indicates good offense.
+
+```{r}
+oregon = offClean %>% filter(Opponent_Opponent %in% c('Oregon'), stat %in% c('Receiving_YDS'))
+oklahoma = offClean %>% filter(Opponent_Opponent %in% c('Oklahoma'), stat %in% c('Receiving_YDS'))
+oklahoma
+ggplot(data = oregon, aes(x = values, y = values)) + geom_point()
+ggplot(data = oklahoma, aes(x = values, y = values)) + geom_point()
+```
+### Yes, ISU scored more points against Oklahoma as the Median against Oklahoma is around 50 points compare to 18 points against Oregon. 
+
+Now turn our attention to the player biography.
+
+5. Separate the Hometown column into two columns, namely, the city and the state where the player comes from. Print the first few rows of these two columns. (Hint: look at the sep= argument of separate)
+
+```{r}
+bioClean = bioClean %>% separate(Hometown, c('City', 'State'))
+bioClean %>% select(City, State)
+```
+6. How many players are there from each state?
+
+```{R}
+bioClean %>% group_by(State) %>% tally()
+```
+7. How does the performance of quarterback Brock Purdy relate to the performance of the ISU team? Comment on both the defense and offense.
+```{r}
+offClean %>% group_by(Name) %>% filter(Name %in% c("Purdy, Brock"), stat %in% c('Passing_CMP')) %>% summarise(Avg_Pass_Completed = mean(values, na.rm = TRUE))
+offClean %>% group_by(Name) %>% filter(Name %in% c("Purdy, Brock"), stat %in% c('Passing_ATT')) %>% summarise(Avg_Pass_Attempted = mean(values, na.rm = TRUE))
+
+offClean %>% group_by(stat) %>% filter(stat %in% c('Passing_CMP')) %>% summarise(Avg_Pass_Completed = mean(values, na.rm = TRUE))
+offClean %>% group_by(stat) %>% filter(stat %in% c('Passing_ATT')) %>% summarise(Avg_Pass_Attempted = mean(values, na.rm = TRUE))
+```
+### when it comes to offensive, the action/performance of Brock Purdy will directly correspond to the team's performance. ###
+### Purdy's average Pass completion is also the teams average of 20.25 throws. 
+### Purdy's average pass attempted is also the teams average of 30.41667 throws. 
+
+```{r}
+defClean %>% group_by(Name) %>% filter(Name %in% c("Purdy, Brock")) %>% summarise(Avg_Tackles_Solo = mean(Tackles_Solo, na.rm = TRUE))
+defClean %>% group_by(Name) %>% filter(Name %in% c("Purdy, Brock")) %>% summarise(Avg_Tackles_ASST = mean(Tackles_ASST, na.rm = TRUE))
+
+mean(defClean$Tackles_Solo)
+mean(defClean$Tackles_ASST)
+```
+### However, it is a different story for defense as Purdy's performance seems to have no effect on the performance of the team. 
+### Purdy's average Tackles solo is 0.08333333 and average tackles assistant is 0. 
+### This is wildly different from the teams where the average solo tackle is 0.9032258 and average tackle assistant is 0.7446237. 
+### As we can see, Purdy hardly perform any tackles and never assisteted anyone. Compare to most invidual of the defensive team that performs almost 1 tackle per game and assist 0.75 tackles per game. 
